@@ -13,7 +13,6 @@ jobs:
 spotify-bot:
 runs-on: ubuntu-latest
 
-```
 steps:
   - name: Repository auschecken
     uses: actions/checkout@v4
@@ -53,4 +52,4 @@ steps:
         git commit -m "Update Spotify release state"
         git push
       fi
-```
+
