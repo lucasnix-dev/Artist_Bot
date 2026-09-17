@@ -21,7 +21,7 @@ SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 MANUAL_RUN = os.getenv("MANUAL_RUN", "false").lower() == "true"
 
 def load_state():
-if not STATE_FILE.exists():
+    if not STATE_FILE.exists():
 return {"last_track_id": None}
 
 ```
