@@ -47,4 +47,3 @@ jobs:
           git diff --cached --quiet || git commit -m "Update Spotify release state"
 
           git push
-```
