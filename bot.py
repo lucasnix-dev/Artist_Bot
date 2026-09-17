@@ -17,23 +17,19 @@ DISCORD_CHANNEL_ID = int(os.environ.get("DISCORD_CHANNEL_ID", "0"))
 SPOTIFY_CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
 
-
 MANUAL_RUN = os.environ.get("MANUAL_RUN", "false").lower() == "true"
+
 
 
 def load_state():
     if not STATE_FILE.exists():
-        return {
-            "last_track_id": None
-        }
+        return {"last_track_id": None}
 
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as file:
             return json.load(file)
     except Exception:
-        return {
-            "last_track_id": None
-        }
+        return {"last_track_id": None}
 
 
 def save_state(state):
@@ -43,52 +39,46 @@ def save_state(state):
 
 
 def get_spotify_token():
-    url = "https://accounts.spotify.com/api/token"
+    print("Hole Spotify Token...")
 
     credentials = f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}"
 
-    encoded_credentials = base64.b64encode(
-        credentials.encode("utf-8")
-    ).decode("utf-8")
-
-    headers = {
-        "Authorization": f"Basic {encoded_credentials}",
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-
-    data = {
-        "grant_type": "client_credentials"
-    }
+    encoded = base64.b64encode(
+        credentials.encode()
+    ).decode()
 
     response = requests.post(
-        url,
-        headers=headers,
-        data=data,
+        "https://accounts.spotify.com/api/token",
+        headers={
+            "Authorization": f"Basic {encoded}",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        data={
+            "grant_type": "client_credentials"
+        },
         timeout=15
     )
 
     response.raise_for_status()
 
+    print("Spotify Token erhalten.")
+
     return response.json()["access_token"]
 
 
 def find_artist(token):
-    url = "https://api.spotify.com/v1/search"
-
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
-    params = {
-        "q": ARTIST_NAME,
-        "type": "artist",
-        "limit": 10
-    }
+    print(f"Suche Artist: {ARTIST_NAME}")
 
     response = requests.get(
-        url,
-        headers=headers,
-        params=params,
+        "https://api.spotify.com/v1/search",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+        params={
+            "q": ARTIST_NAME,
+            "type": "artist",
+            "limit": 10
+        },
         timeout=15
     )
 
@@ -101,31 +91,35 @@ def find_artist(token):
             f"Artist nicht gefunden: {ARTIST_NAME}"
         )
 
-    # Exakte Übereinstimmung bevorzugen
     for artist in artists:
         if artist["name"].lower() == ARTIST_NAME.lower():
+            print(
+                f"Artist gefunden: {artist['name']}"
+            )
             return artist
+
+    print(
+        f"Exakter Artist nicht gefunden. "
+        f"Verwende: {artists[0]['name']}"
+    )
 
     return artists[0]
 
 
 def get_latest_track(token, artist_id):
-    url = f"https://api.spotify.com/v1/artists/{artist_id}/albums"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
-    params = {
-        "include_groups": "album,single",
-        "market": "DE",
-        "limit": 50
-    }
+    print("Suche letzte Veröffentlichung...")
 
     response = requests.get(
-        url,
-        headers=headers,
-        params=params,
+        f"https://api.spotify.com/v1/artists/{artist_id}/albums",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+        params={
+            "include_groups": "album,single",
+            "market": "DE",
+            "limit": 50
+        },
         timeout=15
     )
 
@@ -143,13 +137,17 @@ def get_latest_track(token, artist_id):
 
     newest_album = albums[0]
 
-    album_id = newest_album["id"]
-
-    tracks_url = f"https://api.spotify.com/v1/albums/{album_id}/tracks"
+    print(
+        f"Letzte Veröffentlichung: "
+        f"{newest_album['name']} "
+        f"({newest_album['release_date']})"
+    )
 
     response = requests.get(
-        tracks_url,
-        headers=headers,
+        f"https://api.spotify.com/v1/albums/{newest_album['id']}/tracks",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
         params={
             "market": "DE",
             "limit": 50
@@ -179,146 +177,177 @@ def get_latest_track(token, artist_id):
         )
     }
 
+class DiscordSender(discord.Client):
 
-async def send_no_new_song():
-    intents = discord.Intents.default()
+    async def on_ready(self):
 
-    client = discord.Client(
-        intents=intents
-    )
+        print(f"Discord verbunden als: {self.user}")
+        print(f"Channel ID: {DISCORD_CHANNEL_ID}")
 
-    @client.event
-    async def on_ready():
-        print(f"Discord Bot verbunden: {client.user}")
-
-        channel = client.get_channel(
+        channel = self.get_channel(
             DISCORD_CHANNEL_ID
         )
 
         if channel is None:
-            print("Discord Channel nicht gefunden.")
-            await client.close()
-            return
-
-        await channel.send("Kein Neuer Song")
-
-        print("Discord Nachricht gesendet: Kein Neuer Song")
-
-        await client.close()
-
-    await client.start(DISCORD_TOKEN)
-
-
-async def send_new_song(track):
-    intents = discord.Intents.default()
-
-    client = discord.Client(
-        intents=intents
-    )
-
-    @client.event
-    async def on_ready():
-        print(f"Discord Bot verbunden: {client.user}")
-
-        channel = client.get_channel(
-            DISCORD_CHANNEL_ID
-        )
-
-        if channel is None:
-            print("Discord Channel nicht gefunden.")
-            await client.close()
-            return
-
-        embed = discord.Embed(
-            title=f"🎵 Neuer Song von {ARTIST_NAME}",
-            description=(
-                f"**{track['name']}**\n\n"
-                f"[🎧 Auf Spotify anhören]({track['url']})"
-            ),
-            url=track["url"],
-            color=0x1DB954
-        )
-
-        embed.add_field(
-            name="Release",
-            value=track["release_date"],
-            inline=True
-        )
-
-        embed.add_field(
-            name="Album",
-            value=track["album"],
-            inline=True
-        )
-
-        if track["image"]:
-            embed.set_thumbnail(
-                url=track["image"]
+            print(
+                "FEHLER: Channel wurde nicht gefunden!"
             )
 
-        embed.set_footer(
-            text="Spotify Release Bot"
-        )
+            print(
+                "Versuche Channel direkt über Discord zu laden..."
+            )
 
-        await channel.send(
-            embed=embed
-        )
+            try:
+                channel = await self.fetch_channel(
+                    DISCORD_CHANNEL_ID
+                )
+
+                print(
+                    f"Channel gefunden: {channel}"
+                )
+
+            except Exception as error:
+                print(
+                    f"FEHLER beim Laden des Channels: {error}"
+                )
+
+                await self.close()
+                return
 
         print(
-            f"Discord Nachricht gesendet: {track['name']}"
+            f"Discord Channel gefunden: "
+            f"{channel.name}"
         )
 
-        await client.close()
+        try:
 
-    await client.start(DISCORD_TOKEN)
+            if self.message_type == "no_new_song":
+
+                await channel.send(
+                    "Kein Neuer Song"
+                )
+
+                print(
+                    ">>> 'Kein Neuer Song' wurde gesendet."
+                )
+
+            elif self.message_type == "new_song":
+
+                track = self.track
+
+                embed = discord.Embed(
+                    title=f"🎵 Neuer Song von {ARTIST_NAME}",
+                    description=(
+                        f"**{track['name']}**\n\n"
+                        f"[🎧 Auf Spotify anhören]({track['url']})"
+                    ),
+                    url=track["url"],
+                    color=0x1DB954
+                )
+
+                embed.add_field(
+                    name="Release",
+                    value=track["release_date"],
+                    inline=True
+                )
+
+                embed.add_field(
+                    name="Album",
+                    value=track["album"],
+                    inline=True
+                )
+
+                if track["image"]:
+                    embed.set_thumbnail(
+                        url=track["image"]
+                    )
+
+                embed.set_footer(
+                    text="Spotify Release Bot"
+                )
+
+                await channel.send(
+                    embed=embed
+                )
+
+                print(
+                    ">>> Neuer Song wurde gesendet."
+                )
+
+        except Exception as error:
+
+            print(
+                f"FEHLER beim Senden: {error}"
+            )
+
+        await self.close()
+
+
+async def send_discord_message(
+    message_type,
+    track=None
+):
+
+    intents = discord.Intents.default()
+
+    client = DiscordSender(
+        intents=intents
+    )
+
+    client.message_type = message_type
+    client.track = track
+
+    await client.start(
+        DISCORD_TOKEN
+    )
 
 
 async def check_for_new_song():
 
+    print("")
     print("=" * 50)
-    print(f"Artist: {ARTIST_NAME}")
+    print("SPOTIFY RELEASE CHECK")
+    print("=" * 50)
+
     print(
-        f"Manueller Start: "
-        f"{'JA' if MANUAL_RUN else 'NEIN'}"
-    )
-    print("=" * 50)
-
-    # Spotify Token holen
-    spotify_token = get_spotify_token()
-
-    # Artist suchen
-    artist = find_artist(
-        spotify_token
+        f"Artist: {ARTIST_NAME}"
     )
 
     print(
-        f"Artist gefunden: "
-        f"{artist['name']}"
+        f"Manueller Start: {MANUAL_RUN}"
     )
 
-    # Neuesten Track holen
+    print("=" * 50)
+
+    token = get_spotify_token()
+
+    artist = find_artist(token)
+
     track = get_latest_track(
-        spotify_token,
+        token,
         artist["id"]
     )
 
     if track is None:
 
-        print("Kein Song gefunden.")
+        print(
+            "Kein Track gefunden."
+        )
 
         if MANUAL_RUN:
-            await send_no_new_song()
+            print(
+                "Manueller Start -> sende "
+                "'Kein Neuer Song'"
+            )
+
+            await send_discord_message(
+                "no_new_song"
+            )
 
         return
 
     print(
-        f"Neueste Veröffentlichung: "
-        f"{track['name']}"
-    )
-
-    print(
-        f"Release-Datum: "
-        f"{track['release_date']}"
+        f"Track: {track['name']}"
     )
 
     state = load_state()
@@ -327,12 +356,21 @@ async def check_for_new_song():
         "last_track_id"
     )
 
+    print(
+        f"Gespeicherte Track-ID: "
+        f"{last_track_id}"
+    )
+
+    print(
+        f"Aktuelle Track-ID: "
+        f"{track['id']}"
+    )
+
 
     if last_track_id is None:
 
         print(
-            "Erster Start. "
-            "Aktuellen Song wird gespeichert."
+            "Noch kein Song gespeichert."
         )
 
         state["last_track_id"] = track["id"]
@@ -340,79 +378,96 @@ async def check_for_new_song():
         save_state(state)
 
         if MANUAL_RUN:
-            await send_no_new_song()
+
+            print(
+                "Manueller Start -> "
+                "sende 'Kein Neuer Song'"
+            )
+
+            await send_discord_message(
+                "no_new_song"
+            )
 
         return
 
 
     if last_track_id == track["id"]:
 
-        print("Kein neuer Song.")
+        print(
+            "Kein neuer Song."
+        )
 
         if MANUAL_RUN:
-            await send_no_new_song()
+
+            print(
+                "Manueller Start -> "
+                "sende 'Kein Neuer Song'"
+            )
+
+            await send_discord_message(
+                "no_new_song"
+            )
 
         return
 
+
     print(
-        f"NEUER SONG GEFUNDEN: "
-        f"{track['name']}"
+        "!!! NEUER SONG GEFUNDEN !!!"
     )
 
     state["last_track_id"] = track["id"]
 
     save_state(state)
 
-    await send_new_song(track)
+    await send_discord_message(
+        "new_song",
+        track
+    )
 
 
 if not DISCORD_TOKEN:
-    raise Exception(
-        "DISCORD_TOKEN fehlt!"
-    )
+    raise Exception("DISCORD_TOKEN fehlt!")
 
 if not DISCORD_CHANNEL_ID:
-    raise Exception(
-        "DISCORD_CHANNEL_ID fehlt!"
-    )
+    raise Exception("DISCORD_CHANNEL_ID fehlt!")
 
 if not SPOTIFY_CLIENT_ID:
-    raise Exception(
-        "SPOTIFY_CLIENT_ID fehlt!"
-    )
+    raise Exception("SPOTIFY_CLIENT_ID fehlt!")
 
 if not SPOTIFY_CLIENT_SECRET:
-    raise Exception(
-        "SPOTIFY_CLIENT_SECRET fehlt!"
-    )
+    raise Exception("SPOTIFY_CLIENT_SECRET fehlt!")
+
 
 intents = discord.Intents.default()
 
-client = discord.Client(
+
+class MainBot(discord.Client):
+
+    async def on_ready(self):
+
+        print(
+            f"Bot gestartet: {self.user}"
+        )
+
+        try:
+            await check_for_new_song()
+
+        except Exception as error:
+
+            print(
+                f"FATALER FEHLER: {error}"
+            )
+
+            raise
+
+        finally:
+            await self.close()
+
+
+client = MainBot(
     intents=intents
 )
 
-
-@client.event
-async def on_ready():
-
-    print(
-        f"Discord Bot gestartet: "
-        f"{client.user}"
-    )
-
-    try:
-        await check_for_new_song()
-
-    except Exception as error:
-        print(
-            f"FEHLER: {error}"
-        )
-
-        raise
-
-    finally:
-        await client.close()
-
-
-client.run(DISCORD_TOKEN)
+client.run(
+    DISCORD_TOKEN
+)
