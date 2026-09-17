@@ -23,8 +23,8 @@ MANUAL_RUN = os.getenv("MANUAL_RUN", "false").lower() == "true"
 
 def load_state():
     if not STATE_FILE.exists():
-return {
-"last_release_id": None
+    return {
+    "last_release_id": None
 }
 
 ```
