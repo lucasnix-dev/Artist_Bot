@@ -1,3 +1,4 @@
+```yaml
 name: Spotify Release Bot
 
 on:
@@ -33,6 +34,7 @@ jobs:
           DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           python bot.py
 
@@ -46,3 +48,4 @@ jobs:
           git diff --cached --quiet || git commit -m "Update Spotify release state"
 
           git push
+```
