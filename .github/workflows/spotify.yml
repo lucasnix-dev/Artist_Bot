@@ -1,9 +1,9 @@
 name: T-Low Spotify Release Bot
 
 on:
+workflow_dispatch:
 schedule:
 - cron: "*/5 * * * *"
-workflow_dispatch:
 
 permissions:
 contents: write
@@ -11,21 +11,20 @@ contents: write
 jobs:
 spotify-bot:
 runs-on: ubuntu-latest
+steps:
+- name: Checkout
+uses: actions/checkout@v4
 
 ```
-steps:
-  - name: Repository auschecken
-    uses: actions/checkout@v4
-
-  - name: Python installieren
+  - name: Setup Python
     uses: actions/setup-python@v5
     with:
       python-version: "3.12"
 
-  - name: Abhängigkeiten installieren
+  - name: Install dependencies
     run: pip install -r requirements.txt
 
-  - name: Bot starten
+  - name: Run bot
     env:
       DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
       DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
@@ -34,7 +33,7 @@ steps:
       MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
     run: python bot.py
 
-  - name: State speichern
+  - name: Save state
     run: |
       git config user.name "github-actions[bot]"
       git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
