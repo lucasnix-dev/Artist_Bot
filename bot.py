@@ -1,3 +1,4 @@
+```python
 import os
 import json
 import base64
@@ -19,6 +20,9 @@ DISCORD_CHANNEL_ID = int(os.environ.get("DISCORD_CHANNEL_ID", "0"))
 
 SPOTIFY_CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
+
+# Wird von GitHub Actions gesetzt
+MANUAL_RUN = os.environ.get("MANUAL_RUN", "false").lower() == "true"
 
 
 # ============================================================
@@ -104,7 +108,6 @@ def find_artist(token):
     if not artists:
         raise Exception(f"Artist nicht gefunden: {ARTIST_NAME}")
 
-    # Exakte Übereinstimmung bevorzugen
     for artist in artists:
         if artist["name"].lower() == ARTIST_NAME.lower():
             return artist
@@ -139,7 +142,6 @@ def get_latest_track(token, artist_id):
     if not albums:
         return None
 
-    # Neueste Veröffentlichung nach Datum
     albums.sort(
         key=lambda x: x["release_date"],
         reverse=True
@@ -147,7 +149,6 @@ def get_latest_track(token, artist_id):
 
     newest_album = albums[0]
 
-    # Bei einem Album können mehrere Tracks enthalten sein
     album_id = newest_album["id"]
 
     tracks_url = f"https://api.spotify.com/v1/albums/{album_id}/tracks"
@@ -169,8 +170,6 @@ def get_latest_track(token, artist_id):
     if not tracks:
         return None
 
-    # Normalerweise ist der erste Track ausreichend,
-    # bei Bedarf wird nach dem Veröffentlichungsdatum des Albums gearbeitet.
     track = tracks[0]
 
     return {
@@ -205,12 +204,102 @@ class SpotifyBot(discord.Client):
 
 
 # ============================================================
-# SONG PRÜFEN UND POSTEN
+# DISCORD NACHRICHTEN
+# ============================================================
+
+async def send_message(message_type, track=None):
+
+    intents = discord.Intents.default()
+
+    client = discord.Client(
+        intents=intents
+    )
+
+    @client.event
+    async def on_ready():
+
+        channel = client.get_channel(
+            DISCORD_CHANNEL_ID
+        )
+
+        if channel is None:
+            print("Discord Channel nicht gefunden.")
+            await client.close()
+            return
+
+        # ----------------------------------------------------
+        # KEIN NEUER SONG
+        # ----------------------------------------------------
+
+        if message_type == "no_new_song":
+
+            await channel.send(
+                "Kein Neuer Song"
+            )
+
+            print("Discord Nachricht gesendet: Kein Neuer Song")
+
+        # ----------------------------------------------------
+        # NEUER SONG
+        # ----------------------------------------------------
+
+        elif message_type == "new_song":
+
+            embed = discord.Embed(
+                title=f"🎵 Neuer Song von {ARTIST_NAME}",
+                description=(
+                    f"**{track['name']}**\n\n"
+                    f"[🎧 Auf Spotify anhören]({track['url']})"
+                ),
+                url=track["url"],
+                color=0x1DB954
+            )
+
+            embed.add_field(
+                name="Release",
+                value=track["release_date"],
+                inline=True
+            )
+
+            embed.add_field(
+                name="Album",
+                value=track["album"],
+                inline=True
+            )
+
+            if track["image"]:
+                embed.set_thumbnail(
+                    url=track["image"]
+                )
+
+            embed.set_footer(
+                text="Spotify Release Bot"
+            )
+
+            await channel.send(
+                embed=embed
+            )
+
+            print(
+                f"Discord Nachricht gesendet: {track['name']}"
+            )
+
+        await client.close()
+
+    await client.start(DISCORD_TOKEN)
+
+
+# ============================================================
+# SONG PRÜFEN
 # ============================================================
 
 async def check_for_new_song():
 
     print(f"Prüfe neuen Song von: {ARTIST_NAME}")
+
+    print(
+        f"Manueller Start: {'JA' if MANUAL_RUN else 'NEIN'}"
+    )
 
     spotify_token = get_spotify_token()
 
@@ -228,6 +317,11 @@ async def check_for_new_song():
 
     if not track:
         print("Kein Song gefunden.")
+
+        # Bei manuellem Start trotzdem melden
+        if MANUAL_RUN:
+            await send_message("no_new_song")
+
         return
 
     print(
@@ -240,33 +334,40 @@ async def check_for_new_song():
     last_track_id = state.get("last_track_id")
 
     # --------------------------------------------------------
-    # Erster Start
+    # ERSTER START
     # --------------------------------------------------------
 
     if last_track_id is None:
 
         print(
-            "Erster Start. Aktuellen Song speichern, "
-            "aber noch nichts posten."
+            "Erster Start. Aktuellen Song speichern."
         )
 
         state["last_track_id"] = track["id"]
         save_state(state)
 
+        # Bei manuellem Start trotzdem Nachricht senden
+        if MANUAL_RUN:
+            await send_message("no_new_song")
+
         return
 
     # --------------------------------------------------------
-    # Kein neuer Song
+    # KEIN NEUER SONG
     # --------------------------------------------------------
 
     if last_track_id == track["id"]:
 
         print("Kein neuer Song.")
 
+        # Nur bei manuellem Start Discord-Nachricht
+        if MANUAL_RUN:
+            await send_message("no_new_song")
+
         return
 
     # --------------------------------------------------------
-    # Neuer Song
+    # NEUER SONG
     # --------------------------------------------------------
 
     print(
@@ -276,66 +377,10 @@ async def check_for_new_song():
     state["last_track_id"] = track["id"]
     save_state(state)
 
-    intents = discord.Intents.default()
-
-    client = discord.Client(
-        intents=intents
+    await send_message(
+        "new_song",
+        track
     )
-
-    @client.event
-    async def on_ready():
-
-        channel = client.get_channel(
-            DISCORD_CHANNEL_ID
-        )
-
-        if channel is None:
-            print(
-                "Discord Channel nicht gefunden."
-            )
-            await client.close()
-            return
-
-        embed = discord.Embed(
-            title=f"🎵 Neuer Song von {ARTIST_NAME}",
-            description=(
-                f"**{track['name']}**\n\n"
-                f"[🎧 Auf Spotify anhören]({track['url']})"
-            ),
-            url=track["url"],
-            color=0x1DB954
-        )
-
-        embed.add_field(
-            name="Release",
-            value=track["release_date"],
-            inline=True
-        )
-
-        embed.add_field(
-            name="Album",
-            value=track["album"],
-            inline=True
-        )
-
-        if track["image"]:
-            embed.set_thumbnail(
-                url=track["image"]
-            )
-
-        embed.set_footer(
-            text="Spotify Release Bot"
-        )
-
-        await channel.send(
-            embed=embed
-        )
-
-        print("Discord Nachricht gesendet.")
-
-        await client.close()
-
-    await client.start(DISCORD_TOKEN)
 
 
 # ============================================================
@@ -343,24 +388,16 @@ async def check_for_new_song():
 # ============================================================
 
 if not DISCORD_TOKEN:
-    raise Exception(
-        "DISCORD_TOKEN fehlt!"
-    )
+    raise Exception("DISCORD_TOKEN fehlt!")
 
 if not DISCORD_CHANNEL_ID:
-    raise Exception(
-        "DISCORD_CHANNEL_ID fehlt!"
-    )
+    raise Exception("DISCORD_CHANNEL_ID fehlt!")
 
 if not SPOTIFY_CLIENT_ID:
-    raise Exception(
-        "SPOTIFY_CLIENT_ID fehlt!"
-    )
+    raise Exception("SPOTIFY_CLIENT_ID fehlt!")
 
 if not SPOTIFY_CLIENT_SECRET:
-    raise Exception(
-        "SPOTIFY_CLIENT_SECRET fehlt!"
-    )
+    raise Exception("SPOTIFY_CLIENT_SECRET fehlt!")
 
 
 intents = discord.Intents.default()
@@ -370,3 +407,4 @@ client = SpotifyBot(
 )
 
 client.run(DISCORD_TOKEN)
+```
