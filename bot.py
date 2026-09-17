@@ -9,7 +9,7 @@ import discord
 
 ARTIST_NAME = "t-low"
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(**file**).resolve().parent
 STATE_FILE = BASE_DIR / "state.json"
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -42,7 +42,6 @@ print("Hole Spotify Token...")
 
 ```
 credentials = f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}"
-
 encoded = base64.b64encode(
     credentials.encode("utf-8")
 ).decode("utf-8")
@@ -151,8 +150,7 @@ offset = 0
 
 while True:
     print(
-        f"Lade Veröffentlichungen "
-        f"(Offset {offset})..."
+        f"Lade Veröffentlichungen: Offset {offset}"
     )
 
     data = spotify_get(
@@ -193,8 +191,16 @@ try:
     parts = date_string.split("-")
 
     year = int(parts[0])
-    month = int(parts[1]) if len(parts) > 1 else 1
-    day = int(parts[2]) if len(parts) > 2 else 1
+    month = (
+        int(parts[1])
+        if len(parts) > 1
+        else 1
+    )
+    day = (
+        int(parts[2])
+        if len(parts) > 2
+        else 1
+    )
 
     return (
         year * 10000
@@ -236,7 +242,10 @@ releases.sort(
 latest = releases[0]
 
 album_id = latest.get("id")
-album_name = latest.get("name", "Unbekannt")
+album_name = latest.get(
+    "name",
+    "Unbekannt"
+)
 release_date = latest.get(
     "release_date",
     "Unbekannt"
@@ -257,7 +266,8 @@ print(f"ID: {album_id}")
 print("=" * 60)
 
 tracks_data = spotify_get(
-    f"https://api.spotify.com/v1/albums/{album_id}/tracks",
+    f"https://api.spotify.com/v1/albums/"
+    f"{album_id}/tracks",
     token,
     {
         "limit": 50
@@ -304,10 +314,14 @@ return {
 
 def create_embed(track):
 embed = discord.Embed(
-title=f"🎵 Neuer Song von {ARTIST_NAME}",
+title=(
+f"🎵 Neuer Song von "
+f"{ARTIST_NAME}"
+),
 description=(
 f"**{track['name']}**\n\n"
-f"[🎧 Auf Spotify anhören]({track['url']})"
+f"[🎧 Auf Spotify anhören]"
+f"({track['url']})"
 ),
 url=track["url"],
 color=0x1DB954
@@ -352,7 +366,8 @@ client = discord.Client(
 @client.event
 async def on_ready():
     print(
-        f"Discord verbunden als: {client.user}"
+        f"Discord verbunden als: "
+        f"{client.user}"
     )
 
     try:
@@ -392,7 +407,8 @@ async def on_ready():
 
     except Exception as error:
         print(
-            f"FEHLER beim Discord-Senden: {error}"
+            f"FEHLER beim Discord-Senden: "
+            f"{error}"
         )
 
     finally:
@@ -409,7 +425,9 @@ print("=" * 60)
 print("SPOTIFY RELEASE CHECK")
 print("=" * 60)
 print(f"Artist: {ARTIST_NAME}")
-print(f"Manueller Start: {MANUAL_RUN}")
+print(
+f"Manueller Start: {MANUAL_RUN}"
+)
 print("=" * 60)
 
 ```
@@ -423,7 +441,9 @@ track = get_latest_release(
 )
 
 if track is None:
-    print("Keine Veröffentlichung gefunden.")
+    print(
+        "Keine Veröffentlichung gefunden."
+    )
 
     if MANUAL_RUN:
         await send_discord_message(
@@ -434,9 +454,13 @@ if track is None:
 
 print("")
 print(f"Track: {track['name']}")
-print(f"Release: {track['release_date']}")
+print(
+    f"Release: {track['release_date']}"
+)
 print(f"Album: {track['album']}")
-print(f"Track-ID: {track['id']}")
+print(
+    f"Track-ID: {track['id']}"
+)
 
 state = load_state()
 
@@ -471,7 +495,9 @@ if last_track_id is None:
     return
 
 if last_track_id == track["id"]:
-    print("Kein neuer Song.")
+    print(
+        "Kein neuer Song."
+    )
 
     if MANUAL_RUN:
         await send_discord_message(
@@ -500,16 +526,24 @@ missing = []
 
 ```
 if not DISCORD_TOKEN:
-    missing.append("DISCORD_TOKEN")
+    missing.append(
+        "DISCORD_TOKEN"
+    )
 
 if not DISCORD_CHANNEL_ID:
-    missing.append("DISCORD_CHANNEL_ID")
+    missing.append(
+        "DISCORD_CHANNEL_ID"
+    )
 
 if not SPOTIFY_CLIENT_ID:
-    missing.append("SPOTIFY_CLIENT_ID")
+    missing.append(
+        "SPOTIFY_CLIENT_ID"
+    )
 
 if not SPOTIFY_CLIENT_SECRET:
-    missing.append("SPOTIFY_CLIENT_SECRET")
+    missing.append(
+        "SPOTIFY_CLIENT_SECRET"
+    )
 
 if missing:
     raise Exception(
@@ -554,5 +588,6 @@ except Exception as error:
     print("=" * 60)
     print(error)
     print("=" * 60)
+
     raise
 ```
