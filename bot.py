@@ -10,7 +10,7 @@ import discord
 ARTIST_NAME = "t-low"
 ARTIST_ID = "6CXcJfwCbIa8J99qSeqO6j"
 
-BASE_DIR = Path(**file**).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent
 STATE_FILE = BASE_DIR / "state.json"
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
