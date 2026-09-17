@@ -10,7 +10,7 @@ from pathlib import Path
 # KONFIGURATION
 # ============================================================
 
-ARTIST_NAME = "Ski Aggu"
+ARTIST_NAME = "t-low"
 
 STATE_FILE = Path(__file__).parent / "state.json"
 
